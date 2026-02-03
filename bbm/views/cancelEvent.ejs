@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Cancellation Notice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: #d9534f;
+        }
+        p {
+            font-size: 16px;
+            color: #555;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Event Cancellation Notice</h2>
+
+        <p>Dear <%= name %>,</p>
+        
+        <p>We regret to inform you that the <strong><%= eventName %></strong> scheduled for <strong><%= originalDate %></strong> has been canceled due to <%= cancellationReason %>.</p>
+        
+        <p>We truly appreciate your interest and support and apologize for any inconvenience this may cause. While we won’t be able to proceed with this event, we look forward to bringing you more exciting opportunities in the future.</p>
+        
+        <p>Thank you for your understanding. If you have any questions, please feel free to reach out to us at <strong><%= contactEmail %></strong>.</p>
+        
+        <p>Best regards</p>
+
+    </div>
+</body>
+</html>

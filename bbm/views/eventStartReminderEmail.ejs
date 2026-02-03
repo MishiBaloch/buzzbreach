@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title><%= eventName %> Starts Soon!</title>
+</head>
+<body>
+    <p>Hi <%= userName %>,</p>
+    
+    <p>Just a reminder that <strong><%= eventName %></strong> is about to start! Here are the event details:</p>
+
+    <h3>Event Details:</h3>
+    <ul>
+        <li><strong>TimeZone:</strong> <%= timeZone %></li>
+        <li><strong>Event Start at :</strong> <%= eventStartTiming %></li>
+        <li><strong>Event Ends at :</strong> <%= eventEndTiming %></li>
+       
+    </ul>
+
+    <p><strong>Join Online:</strong> <a href="<%= trackerLink %>">Click here to get the meet link</a></p>
+
+    <p>We can't wait to see you there! If you encounter any issues joining the event, please reply to this email for assistance.</p>
+
+    <p>Thank you,<br>
+    The <%= organizer %> Team</p>
+</body>
+</html>

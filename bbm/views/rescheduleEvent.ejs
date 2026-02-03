@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Postponement Notice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            color: #333;
+        }
+        p {
+            font-size: 16px;
+            color: #555;
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        ul li {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .footer {
+            margin-top: 20px;
+            font-size: 14px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Dear <%= name %>,</h2>
+        
+        <p>We wanted to inform you that the <strong><%= eventName %></strong>, originally scheduled for <strong><%= originalDate %></strong>, has been postponed.</p>
+        
+        <p>However, we are pleased to share the updated event details with you:</p>
+        
+        <ul>
+            <li>📅 <strong>Start Time:</strong> <%= startTime %></li>
+            <li>⏰ <strong>End Time:</strong> <%= endTime %></li>
+        </ul>
+        
+        <p>Your existing registration remains valid for the rescheduled event, and we look forward to your participation.</p>
+        
+        <p>We sincerely apologize for any inconvenience this may have caused and truly appreciate your understanding.</p>
+        
+        
+        <p>Best regards</p>
+        
+    </div>
+</body>
+</html>

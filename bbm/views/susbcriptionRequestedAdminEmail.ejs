@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Subscription Plan Request Received</title>
+    <style>
+      /* Inline CSS styles for email compatibility */
+      .container {
+        font-family: Arial, sans-serif;
+        padding: 20px;
+        max-width: 600px;
+        /* Maximum width of the container */
+        margin: auto;
+        /* Center the container */
+      }
+
+      .instruction-box {
+        border: 2px solid #df7b01;
+        /* Orange border */
+        border-radius: 8px;
+        /* Rounded corners */
+        padding: 20px;
+        background-color: #f9f9f9;
+        /* Light gray background */
+        margin: 20px 0;
+        /* Space around the box */
+      }
+
+      .instruction-box p {
+        margin: 0 0 10px;
+        /* Space between paragraphs */
+        line-height: 1.6;
+        /* Increase line height for readability */
+      }
+
+      .button {
+        display: inline-block;
+        padding: 10px 20px;
+        margin-top: 10px;
+        background-color: #df7b01;
+        /* Orange background */
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        /* Rounded corners */
+        font-weight: bold;
+        text-align: center;
+        /* Center text inside button */
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h1 style="text-align: center">New Subscription Plan Request Received</h1>
+      <div class="instruction-box">
+        <p>
+          Dear Admin, <br />
+          <br />
+          A new subscription request has been received. Please log in to the
+          admin panel to review the details and take the necessary actions.
+          <br /><br />
+          Request Details:<br />
+          <br />
+
+          Name: <%= name %><br />
+          Company Name: <%= companyName %><br />
+          Email: <%= email %><br />
+          Phone No.: <%= phoneNo %><br />
+          Plan Requested: <%= subscriptionPlan %><br />
+          Submission Date: <%= date %><br />
+          <br />
+          If you have any questions or require assistance, feel free to contact
+          the support team.
+          <br />
+          <br />
+          <br />
+          Thank you, <br />
+          The BuzzBreach Team
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
