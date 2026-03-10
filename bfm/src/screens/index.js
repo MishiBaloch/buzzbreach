@@ -7,6 +7,7 @@ export { default as OnboardingScreen } from './onboarding/OnboardingScreen';
 export { default as LoginScreen } from './auth/LoginScreen';
 export { default as SignUpScreen } from './auth/SignUpScreen';
 export { default as ForgotPasswordScreen } from './auth/ForgotPasswordScreen';
+export { default as ResetPasswordScreen } from './auth/ResetPasswordScreen';
 
 // Main Screens
 export { default as HomeScreen } from './home/HomeScreen';

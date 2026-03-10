@@ -196,7 +196,10 @@ const ProfileScreen = ({ navigation }) => {
       </View>
 
       {/* Edit Profile Button */}
-      <TouchableOpacity style={styles.editButton}>
+      <TouchableOpacity 
+        style={styles.editButton}
+        onPress={() => navigation.navigate('EditProfile')}
+      >
         <Ionicons name="create-outline" size={20} color={colors.primary} />
         <Text style={styles.editButtonText}>Edit Profile</Text>
       </TouchableOpacity>
@@ -206,44 +209,72 @@ const ProfileScreen = ({ navigation }) => {
   const renderSettingsTab = () => (
     <View style={styles.tabContent}>
       <View style={styles.settingsCard}>
-        <TouchableOpacity style={styles.settingsItem}>
+        <TouchableOpacity 
+          style={styles.settingsItem}
+          onPress={() => navigation.navigate('AccountPreferences')}
+        >
           <View style={styles.settingsIconContainer}>
             <Ionicons name="person-outline" size={22} color={colors.primary} />
           </View>
-          <Text style={styles.settingsText}>Edit Profile</Text>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Text style={styles.settingsText}>Account</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingsItem}>
           <View style={styles.settingsIconContainer}>
-            <Ionicons name="key-outline" size={22} color={colors.primary} />
+            <Ionicons name="lock-closed-outline" size={22} color={colors.primary} />
           </View>
-          <Text style={styles.settingsText}>Change Password</Text>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Text style={styles.settingsText}>Security</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.settingsItem}>
+        <TouchableOpacity 
+          style={styles.settingsItem}
+          onPress={() => navigation.navigate('DataPrivacy')}
+        >
+          <View style={styles.settingsIconContainer}>
+            <Ionicons name="shield-outline" size={22} color={colors.primary} />
+          </View>
+          <Text style={styles.settingsText}>Data privacy</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.settingsItem}
+          onPress={() => navigation.navigate('Visibility')}
+        >
+          <View style={styles.settingsIconContainer}>
+            <Ionicons name="eye-outline" size={22} color={colors.primary} />
+          </View>
+          <Text style={styles.settingsText}>Visibility</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.settingsItem}
+          onPress={() => navigation.navigate('Notifications')}
+        >
           <View style={styles.settingsIconContainer}>
             <Ionicons name="notifications-outline" size={22} color={colors.primary} />
           </View>
           <Text style={styles.settingsText}>Notifications</Text>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingsItem}>
           <View style={styles.settingsIconContainer}>
-            <Ionicons name="shield-outline" size={22} color={colors.primary} />
+            <Ionicons name="headset-outline" size={22} color={colors.primary} />
           </View>
-          <Text style={styles.settingsText}>Privacy</Text>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Text style={styles.settingsText}>Help center</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingsItem}>
           <View style={styles.settingsIconContainer}>
-            <Ionicons name="help-circle-outline" size={22} color={colors.primary} />
+            <Ionicons name="document-text-outline" size={22} color={colors.primary} />
           </View>
-          <Text style={styles.settingsText}>Help & Support</Text>
-          <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          <Text style={styles.settingsText}>Privacy policy</Text>
+          <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -276,7 +307,7 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       <ScrollView 
         showsVerticalScrollIndicator={false}
@@ -286,43 +317,36 @@ const ProfileScreen = ({ navigation }) => {
             onRefresh={onRefresh}
             colors={[colors.primary]}
             tintColor={colors.primary}
-            progressBackgroundColor={colors.backgroundCard}
+            progressBackgroundColor="#F3F4F6"
           />
         }
       >
-        {/* Header */}
+        {/* Header with Profile Info */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
-        </View>
-
-        {/* Profile Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarContainer}>
-            {profile?.profileImg ? (
-              <Image source={{ uri: profile.profileImg }} style={styles.avatar} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarText}>
-                  {profile?.firstName?.charAt(0) || profile?.email?.charAt(0)?.toUpperCase() || 'U'}
-                </Text>
-              </View>
-            )}
-            <TouchableOpacity style={styles.editAvatarButton}>
-              <Ionicons name="camera" size={16} color={colors.white} />
-            </TouchableOpacity>
+          <View style={styles.headerProfile}>
+            <View style={styles.headerAvatarContainer}>
+              {profile?.profileImg || profile?.profilePicture ? (
+                <Image 
+                  source={{ uri: profile.profileImg || profile.profilePicture }} 
+                  style={styles.headerAvatar} 
+                />
+              ) : (
+                <View style={styles.headerAvatarPlaceholder}>
+                  <Text style={styles.headerAvatarText}>
+                    {profile?.firstName?.charAt(0)?.toUpperCase() || 
+                     profile?.lastName?.charAt(0)?.toUpperCase() || 
+                     profile?.email?.charAt(0)?.toUpperCase() || 
+                     'U'}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.headerName}>
+              {profile?.firstName && profile?.lastName 
+                ? `${profile.firstName} ${profile.lastName}`
+                : profile?.email?.split('@')[0] || 'User'}
+            </Text>
           </View>
-          
-          <Text style={styles.profileName}>
-            {profile?.firstName && profile?.lastName 
-              ? `${profile.firstName} ${profile.lastName}`
-              : profile?.email?.split('@')[0] || 'User'}
-          </Text>
-          
-          {profile?.headline && (
-            <Text style={styles.profileHeadline}>{profile.headline}</Text>
-          )}
-          
-          <Text style={styles.profileEmail}>{profile?.email}</Text>
         </View>
 
         {/* Tabs */}
@@ -357,17 +381,47 @@ const ProfileScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#FFFFFF',
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     paddingBottom: spacing.lg,
+    backgroundColor: '#FFFFFF',
   },
-  headerTitle: {
-    fontSize: fontSize.xxl,
+  headerProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  headerAvatarContainer: {
+    marginRight: spacing.md,
+  },
+  headerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  headerAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerAvatarText: {
+    fontSize: fontSize.lg,
     fontWeight: '700',
     color: colors.white,
+  },
+  headerName: {
+    fontSize: fontSize.xl,
+    fontWeight: '600',
+    color: '#000000',
+    flex: 1,
   },
   profileCard: {
     alignItems: 'center',
@@ -412,18 +466,18 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: fontSize.xxl,
     fontWeight: '700',
-    color: colors.white,
+    color: '#000000',
     textTransform: 'capitalize',
   },
   profileHeadline: {
     fontSize: fontSize.md,
-    color: colors.textSecondary,
+    color: '#6B7280',
     marginTop: spacing.xs,
     textAlign: 'center',
   },
   profileEmail: {
     fontSize: fontSize.sm,
-    color: colors.textMuted,
+    color: '#6B7280',
     marginTop: spacing.xs,
   },
   tabsContainer: {
@@ -439,17 +493,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     marginHorizontal: spacing.xs,
     borderRadius: borderRadius.lg,
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E5E7EB',
   },
   tabActive: {
-    backgroundColor: 'rgba(108, 99, 255, 0.15)',
+    backgroundColor: 'rgba(108, 99, 255, 0.1)',
     borderColor: colors.primary,
   },
   tabText: {
     fontSize: fontSize.sm,
-    color: colors.textMuted,
+    color: '#6B7280',
     marginLeft: spacing.xs,
     fontWeight: '500',
   },
@@ -462,17 +516,17 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl,
   },
   infoCard: {
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.xl,
     padding: spacing.md,
     marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E5E7EB',
   },
   cardTitle: {
     fontSize: fontSize.lg,
     fontWeight: '600',
-    color: colors.white,
+    color: '#000000',
     marginBottom: spacing.md,
   },
   infoRow: {
@@ -500,7 +554,7 @@ const styles = StyleSheet.create({
   },
   infoValue: {
     fontSize: fontSize.md,
-    color: colors.white,
+    color: '#000000',
     marginTop: 2,
   },
   skillsSection: {
@@ -547,18 +601,18 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
   },
   settingsCard: {
-    backgroundColor: colors.backgroundCard,
+    backgroundColor: '#FFFFFF',
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E5E7EB',
   },
   settingsItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: '#E5E7EB',
   },
   settingsIconContainer: {
     width: 40,
@@ -572,7 +626,7 @@ const styles = StyleSheet.create({
   settingsText: {
     flex: 1,
     fontSize: fontSize.md,
-    color: colors.white,
+    color: '#000000',
   },
   logoutItem: {
     borderBottomWidth: 0,

@@ -102,6 +102,54 @@ export const checkAuthAsync = createAsyncThunk(
   }
 );
 
+// Login with Google
+export const loginWithGoogleAsync = createAsyncThunk(
+  'auth/loginGoogle',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await authService.loginWithGoogle();
+      if (!result.success) {
+        return rejectWithValue(result.error);
+      }
+      return result;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Google login failed');
+    }
+  }
+);
+
+// Login with Facebook
+export const loginWithFacebookAsync = createAsyncThunk(
+  'auth/loginFacebook',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await authService.loginWithFacebook();
+      if (!result.success) {
+        return rejectWithValue(result.error);
+      }
+      return result;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Facebook login failed');
+    }
+  }
+);
+
+// Login with Apple
+export const loginWithAppleAsync = createAsyncThunk(
+  'auth/loginApple',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await authService.loginWithApple();
+      if (!result.success) {
+        return rejectWithValue(result.error);
+      }
+      return result;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Apple login failed');
+    }
+  }
+);
+
 const initialState = {
   user: null,
   isAuthenticated: false,
@@ -211,6 +259,54 @@ const authSlice = createSlice({
         state.isCheckingAuth = false;
         state.isAuthenticated = false;
         state.user = null;
+      })
+      // Login with Google
+      .addCase(loginWithGoogleAsync.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginWithGoogleAsync.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user || null;
+        state.error = null;
+      })
+      .addCase(loginWithGoogleAsync.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Google login failed';
+        state.isAuthenticated = false;
+      })
+      // Login with Facebook
+      .addCase(loginWithFacebookAsync.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginWithFacebookAsync.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user || null;
+        state.error = null;
+      })
+      .addCase(loginWithFacebookAsync.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Facebook login failed';
+        state.isAuthenticated = false;
+      })
+      // Login with Apple
+      .addCase(loginWithAppleAsync.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(loginWithAppleAsync.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user || null;
+        state.error = null;
+      })
+      .addCase(loginWithAppleAsync.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload || 'Apple login failed';
+        state.isAuthenticated = false;
       });
   },
 });

@@ -1,14 +1,56 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 // Keys
 const ONBOARDING_COMPLETE_KEY = 'onboarding_complete';
 const AUTH_TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 
+// Platform-specific storage helpers
+const isWeb = Platform.OS === 'web';
+
+const storage = {
+  async getItem(key) {
+    if (isWeb) {
+      return localStorage.getItem(key);
+    }
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch (error) {
+      console.error(`Error getting ${key}:`, error);
+      return null;
+    }
+  },
+
+  async setItem(key, value) {
+    if (isWeb) {
+      localStorage.setItem(key, value);
+      return;
+    }
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch (error) {
+      console.error(`Error setting ${key}:`, error);
+    }
+  },
+
+  async removeItem(key) {
+    if (isWeb) {
+      localStorage.removeItem(key);
+      return;
+    }
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch (error) {
+      console.error(`Error removing ${key}:`, error);
+    }
+  },
+};
+
 // Onboarding functions
 export const markOnboardingComplete = async () => {
   try {
-    await SecureStore.setItemAsync(ONBOARDING_COMPLETE_KEY, 'true');
+    await storage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
     return true;
   } catch (error) {
     console.error('Error marking onboarding complete:', error);
@@ -18,7 +60,7 @@ export const markOnboardingComplete = async () => {
 
 export const isOnboardingComplete = async () => {
   try {
-    const value = await SecureStore.getItemAsync(ONBOARDING_COMPLETE_KEY);
+    const value = await storage.getItem(ONBOARDING_COMPLETE_KEY);
     return value === 'true';
   } catch (error) {
     console.error('Error checking onboarding status:', error);
@@ -28,7 +70,7 @@ export const isOnboardingComplete = async () => {
 
 export const resetOnboarding = async () => {
   try {
-    await SecureStore.deleteItemAsync(ONBOARDING_COMPLETE_KEY);
+    await storage.removeItem(ONBOARDING_COMPLETE_KEY);
     return true;
   } catch (error) {
     console.error('Error resetting onboarding:', error);
@@ -39,7 +81,7 @@ export const resetOnboarding = async () => {
 // Token functions
 export const getAuthToken = async () => {
   try {
-    return await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+    return await storage.getItem(AUTH_TOKEN_KEY);
   } catch (error) {
     console.error('Error getting auth token:', error);
     return null;
@@ -48,7 +90,7 @@ export const getAuthToken = async () => {
 
 export const setAuthToken = async (token) => {
   try {
-    await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
+    await storage.setItem(AUTH_TOKEN_KEY, token);
     return true;
   } catch (error) {
     console.error('Error setting auth token:', error);
@@ -58,8 +100,8 @@ export const setAuthToken = async (token) => {
 
 export const clearAuthTokens = async () => {
   try {
-    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    await storage.removeItem(AUTH_TOKEN_KEY);
+    await storage.removeItem(REFRESH_TOKEN_KEY);
     return true;
   } catch (error) {
     console.error('Error clearing auth tokens:', error);
@@ -70,8 +112,8 @@ export const clearAuthTokens = async () => {
 // Clear all app data (for logout)
 export const clearAllData = async () => {
   try {
-    await SecureStore.deleteItemAsync(AUTH_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+    await storage.removeItem(AUTH_TOKEN_KEY);
+    await storage.removeItem(REFRESH_TOKEN_KEY);
     // Note: We don't clear onboarding status on logout
     return true;
   } catch (error) {

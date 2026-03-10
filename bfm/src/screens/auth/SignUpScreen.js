@@ -17,8 +17,9 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fontSize, spacing, borderRadius } from '../../theme/colors';
-import { registerAsync } from '../../store/slices/authSlice';
+import { registerAsync, loginWithGoogleAsync, loginWithFacebookAsync, loginWithAppleAsync } from '../../store/slices/authSlice';
 import { LoadingOverlay } from '../../components/common/Loading';
+import { isOnboardingComplete } from '../../utils/storage';
 import BuzzBreachLogo from '../../components/common/BuzzBreachLogo';
 
 const { width, height } = Dimensions.get('window');
@@ -117,17 +118,9 @@ const SignUpScreen = ({ navigation }) => {
       }));
 
       if (registerAsync.fulfilled.match(result)) {
-        // Registration successful - show success and navigate to Login
-        Alert.alert(
-          'Account Created!',
-          'Your account has been created successfully. Please login to continue.',
-          [
-            {
-              text: 'Login',
-              onPress: () => navigation.navigate('Login'),
-            },
-          ]
-        );
+        // Registration successful - navigate directly to Login screen
+        // Navigate immediately after successful signup
+        navigation.navigate('Login');
       } else {
         Alert.alert(
           'Registration Failed',
@@ -140,12 +133,90 @@ const SignUpScreen = ({ navigation }) => {
   };
 
   // Handle Social Login
-  const handleSocialLogin = (provider) => {
-    Alert.alert(
-      `${provider} Sign Up`,
-      `${provider} sign up will be implemented with Keycloak integration.`,
-      [{ text: 'OK' }]
-    );
+  const handleSocialLogin = async (provider) => {
+    try {
+      let result;
+      if (provider === 'Google') {
+        result = await dispatch(loginWithGoogleAsync());
+      } else if (provider === 'Facebook') {
+        result = await dispatch(loginWithFacebookAsync());
+      } else if (provider === 'Apple') {
+        result = await dispatch(loginWithAppleAsync());
+      }
+
+      if (result && (loginWithGoogleAsync.fulfilled.match(result) || 
+                     loginWithFacebookAsync.fulfilled.match(result) || 
+                     loginWithAppleAsync.fulfilled.match(result))) {
+        // For social login, get user details from backend to check onboarding status
+        try {
+          const { getCurrentUser } = await import('../../api/services/authService');
+          const userResult = await getCurrentUser();
+          const user = userResult?.data;
+          let onboardingDone = false;
+          
+          // Prioritize backend user data
+          // Handle both boolean true and string "true" values, and check if property exists
+          const userOnboarded = user?.isOnboarded;
+          const hasOnboardedProperty = user && ('isOnboarded' in user);
+          
+          if (hasOnboardedProperty) {
+            // Check for boolean true, string "true", or number 1
+            onboardingDone = userOnboarded === true || userOnboarded === 'true' || userOnboarded === 1;
+            
+            // Sync local storage with backend status
+            const { markOnboardingComplete, resetOnboarding } = await import('../../utils/storage');
+            if (onboardingDone) {
+              // Backend says onboarded - update local storage to match
+              await markOnboardingComplete();
+            } else {
+              // Backend says not onboarded - clear local storage to avoid conflicts
+              await resetOnboarding();
+            }
+          } else {
+            // Fallback to local storage
+            onboardingDone = await isOnboardingComplete();
+          }
+          
+          console.log('Social signup onboarding check:', { 
+            userOnboarded: userOnboarded,
+            userOnboardedType: typeof userOnboarded,
+            hasOnboardedProperty,
+            onboardingDone,
+            userKeys: user ? Object.keys(user) : []
+          });
+          
+          if (onboardingDone) {
+            // User has completed onboarding - go to main app
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' }],
+            });
+          } else {
+            // User needs to complete onboarding
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Onboarding' }],
+            });
+          }
+        } catch (err) {
+          console.error('Error checking user onboarding status:', err);
+          // Default to showing onboarding if we can't determine status
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Onboarding' }],
+          });
+        }
+      } else if (result && (loginWithGoogleAsync.rejected.match(result) || 
+                            loginWithFacebookAsync.rejected.match(result) || 
+                            loginWithAppleAsync.rejected.match(result))) {
+        Alert.alert(
+          `${provider} Sign Up Failed`,
+          result.payload || `Failed to sign up with ${provider}. Please try again.`
+        );
+      }
+    } catch (error) {
+      Alert.alert('Error', `Something went wrong with ${provider} sign up. Please try again.`);
+    }
   };
 
   // Step 1 Form Valid
@@ -204,7 +275,7 @@ const SignUpScreen = ({ navigation }) => {
         ]}>
           <TextInput
             style={styles.input}
-            placeholder="Enter your email"
+            placeholder="Enter email address"
             placeholderTextColor={colors.textMuted}
             value={email}
             onChangeText={setEmail}
@@ -263,11 +334,17 @@ const SignUpScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.eyeButton}
             onPress={() => setShowPassword(!showPassword)}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            activeOpacity={0.6}
+            accessible={true}
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
           >
             <Ionicons
+              // When showPassword is true: show eye-off-outline (line/cross through) and password is visible
+              // When showPassword is false: show eye-outline (normal eye) and password is hidden (stars)
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={20}
-              color={colors.textMuted}
+              size={22}
+              color={colors.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -295,11 +372,17 @@ const SignUpScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.eyeButton}
             onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            activeOpacity={0.6}
+            accessible={true}
+            accessibilityLabel={showConfirmPassword ? 'Hide password' : 'Show password'}
           >
             <Ionicons
+              // When showConfirmPassword is true: show eye-off-outline (line/cross through) and password is visible
+              // When showConfirmPassword is false: show eye-outline (normal eye) and password is hidden (stars)
               name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
-              size={20}
-              color={colors.textMuted}
+              size={22}
+              color={colors.textSecondary}
             />
           </TouchableOpacity>
         </View>
@@ -339,37 +422,30 @@ const SignUpScreen = ({ navigation }) => {
   );
 
   return (
-    <View style={styles.container}>
+    <ImageBackground
+      source={require('../../../assets/signup.jpeg')}
+      style={styles.container}
+      imageStyle={styles.backgroundImageStyle}
+      resizeMode="cover"
+    >
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Background Image Area */}
-      <ImageBackground
-        source={{ uri: 'https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=800' }}
-        style={styles.backgroundArea}
-        imageStyle={styles.backgroundImageStyle}
-        resizeMode="cover"
+      {/* Dark Overlay */}
+      <LinearGradient
+        colors={['rgba(13, 11, 30, 0.3)', 'rgba(13, 11, 30, 0.8)']}
+        locations={[0, 1]}
+        style={styles.overlay}
       >
-        <LinearGradient
-          colors={['rgba(13, 11, 30, 0.45)', 'rgba(13, 11, 30, 0.95)']}
-          locations={[0, 1]}
-          style={styles.gradient}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
         >
-          <View style={styles.heroImagePlaceholder}>
-            <BuzzBreachLogo size={80} color={colors.primary} />
-          </View>
-        </LinearGradient>
-      </ImageBackground>
-      
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Header with Logo */}
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+          {/* Header - empty for spacing */}
           <View style={styles.header}>
             <TouchableOpacity 
               style={styles.backButton}
@@ -377,40 +453,53 @@ const SignUpScreen = ({ navigation }) => {
             >
               <Ionicons name="arrow-back" size={24} color={colors.white} />
             </TouchableOpacity>
-            <View style={styles.logoContainer}>
-              <BuzzBreachLogo size={22} color={colors.primary} />
-              <Text style={styles.logoText}>BUZZBREACH</Text>
-            </View>
             <View style={styles.placeholder} />
+            <View style={styles.placeholder} />
+          </View>
+
+          {/* Logo and Tagline at TOP - above the card */}
+          <View style={styles.topLogoSection}>
+            {/* Logo and Platform Name together */}
+            <View style={styles.logoRow}>
+              <BuzzBreachLogo size={35} />
+              <Text style={styles.brandName}>BUZZBREACH</Text>
+            </View>
+            {/* Tagline exactly below platform name */}
+            <View style={styles.taglineContainer}>
+              <Text style={styles.topTagline}>breaking through the noise</Text>
+            </View>
           </View>
 
           {/* Spacer */}
           <View style={styles.spacer} />
 
-          {/* Main Content Card */}
+          {/* Main Content Card with Gradient Blend */}
           <View style={styles.mainCard}>
-            {/* Step Indicator */}
-            <View style={styles.stepIndicator}>
-              <View style={[styles.stepDot, step >= 1 && styles.stepDotActive]} />
-              <View style={styles.stepLine} />
-              <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]} />
-            </View>
+            <LinearGradient
+              colors={['rgba(13, 11, 30, 0)', 'rgba(13, 11, 30, 0.3)', 'rgba(13, 11, 30, 0.7)', 'rgba(13, 11, 30, 0.95)', colors.background]}
+              locations={[0, 0.1, 0.25, 0.5, 0.75]}
+              style={styles.cardGradient}
+            >
+              {/* Step Indicator */}
+              <View style={styles.stepIndicator}>
+                <View style={[styles.stepDot, step >= 1 && styles.stepDotActive]} />
+                <View style={styles.stepLine} />
+                <View style={[styles.stepDot, step >= 2 && styles.stepDotActive]} />
+              </View>
 
-            {/* Title Section */}
-            <View style={styles.titleSection}>
-              <Text style={styles.title}>Let's Talk To</Text>
-              <Text style={styles.titleHighlight}>Your Goals!</Text>
-              <Text style={styles.subtitle}>
-                {step === 1 
-                  ? 'Enter your email to get started.'
-                  : 'Create a secure password for your account.'}
-              </Text>
-            </View>
+              {/* Title Section */}
+              <View style={styles.titleSection}>
+                <Text style={styles.title}>Let's Talk To{'\n'}Your Goals!</Text>
+                <Text style={styles.subtitle}>
+                  BuzzBreach will connect people to help{'\n'}them achieve their goals!
+                </Text>
+              </View>
 
-            {/* Form */}
-            <View style={styles.formContainer}>
-              {step === 1 ? renderStep1() : renderStep2()}
-            </View>
+              {/* Form */}
+              <View style={styles.formContainer}>
+                {step === 1 ? renderStep1() : renderStep2()}
+              </View>
+            </LinearGradient>
           </View>
 
           {/* Bottom Indicator */}
@@ -421,41 +510,24 @@ const SignUpScreen = ({ navigation }) => {
       </KeyboardAvoidingView>
 
       <LoadingOverlay visible={isLoading} message="Creating account..." />
-    </View>
+    </LinearGradient>
+  </ImageBackground>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     width: '100%',
-    maxWidth: width,
-    overflow: 'hidden',
-  },
-  backgroundArea: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: isSmallDevice ? 180 : 250,
+    height: '100%',
   },
   backgroundImageStyle: {
-    transform: [{ scale: 1.12 }, { translateY: 16 }],
+    opacity: 1,
   },
-  gradient: {
+  overlay: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroImagePlaceholder: {
-    width: isSmallDevice ? 100 : 120,
-    height: isSmallDevice ? 70 : 80,
-    backgroundColor: 'rgba(108, 99, 255, 0.1)',
-    borderRadius: borderRadius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: isSmallDevice ? 40 : 50,
+    width: '100%',
+    height: '100%',
   },
   keyboardView: {
     flex: 1,
@@ -469,7 +541,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + spacing.sm : spacing.xl,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + spacing.md : spacing.lg,
     paddingHorizontal: spacing.md,
     width: '100%',
   },
@@ -481,30 +553,71 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: fontSize.sm,
-    fontWeight: '600',
-    color: colors.white,
-    marginLeft: spacing.xs,
-    letterSpacing: 1,
-  },
   placeholder: {
     width: 40,
   },
+  topLogoSection: {
+    alignItems: 'center',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 0,
+  },
+  brandName: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: colors.white,
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+    marginLeft: 8,
+    // ITC Machine style - matching splash screen
+    fontFamily: Platform.select({
+      ios: 'Arial-BoldMT',
+      android: 'sans-serif-black',
+    }),
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  taglineContainer: {
+    marginLeft: 43, // Logo width (35) + marginLeft (8) = 43 to align with BUZZBREACH start
+    alignItems: 'flex-start',
+    marginTop: -2,
+  },
+  topTagline: {
+    fontSize: 10,
+    color: colors.white,
+    letterSpacing: 1,
+    fontWeight: '300',
+    textAlign: 'left',
+    textTransform: 'lowercase',
+    // Roboto or similar geometric sans-serif
+    fontFamily: Platform.select({
+      ios: 'System',
+      android: 'Roboto',
+    }),
+    opacity: 0.9,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   spacer: {
-    height: isSmallDevice ? 60 : 100,
+    height: isSmallDevice ? 20 : 30,
   },
   mainCard: {
-    flex: 1,
-    backgroundColor: colors.background,
     borderTopLeftRadius: borderRadius.xxl,
     borderTopRightRadius: borderRadius.xxl,
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.md,
+    width: '100%',
+    overflow: 'hidden',
+  },
+  cardGradient: {
+    paddingTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
     width: '100%',
   },
   stepIndicator: {
@@ -529,23 +642,22 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.sm,
   },
   titleSection: {
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
+    alignItems: 'center',
   },
   title: {
-    fontSize: isSmallDevice ? 22 : 28,
+    fontSize: isSmallDevice ? 28 : 36,
     fontWeight: '700',
     color: colors.white,
-  },
-  titleHighlight: {
-    fontSize: isSmallDevice ? 22 : 28,
-    fontWeight: '700',
-    color: colors.primary,
-    marginBottom: spacing.xs,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    lineHeight: isSmallDevice ? 36 : 44,
   },
   subtitle: {
-    fontSize: isSmallDevice ? fontSize.sm : fontSize.md,
+    fontSize: isSmallDevice ? fontSize.md : fontSize.lg,
     color: colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   formContainer: {
     flex: 1,
@@ -581,6 +693,11 @@ const styles = StyleSheet.create({
   },
   eyeButton: {
     padding: spacing.sm,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
   },
   errorText: {
     color: colors.error,

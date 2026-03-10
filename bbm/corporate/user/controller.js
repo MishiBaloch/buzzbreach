@@ -3,6 +3,7 @@ const axios = require("axios");
 const qs = require("qs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const { OAuth2Client } = require("google-auth-library");
 
 // Check if we're in development mode (no Keycloak)
 const DEV_MODE = !process.env.KEYCLOAK_URL || process.env.DEV_MODE === "true";
@@ -42,7 +43,7 @@ const loginUserDev = async (req, res) => {
   }
 
   try {
-    // Find user in ArangoDB
+    // Find user in ArangoDB - query fresh data from database
     const cursor = await db.query(`
       FOR user IN users
       FILTER user.email == "${email}"
@@ -54,7 +55,10 @@ const loginUserDev = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    const user = users[0];
+    // Get fresh user document from database to ensure we have latest isOnboarded value
+    const userDoc = users[0];
+    const collection = db.collection("users");
+    const user = await collection.document(userDoc._key); // Re-fetch to ensure fresh data
 
     // Check password
     const hashedPassword = hashPassword(password);
@@ -76,13 +80,27 @@ const loginUserDev = async (req, res) => {
 
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
+    
+    // Ensure isOnboarded is always present (default to false if not set)
+    // Handle both boolean and any other truthy values
+    const isOnboardedValue = userWithoutPassword.isOnboarded !== undefined 
+      ? (userWithoutPassword.isOnboarded === true || userWithoutPassword.isOnboarded === 'true' || userWithoutPassword.isOnboarded === 1)
+      : false;
+    
+    const userResponse = {
+      ...userWithoutPassword,
+      isOnboarded: isOnboardedValue,
+    };
+
+    // Log for debugging
+    console.log(`[Login Dev] User ${user.email} login - isOnboarded:`, userWithoutPassword.isOnboarded, '->', isOnboardedValue);
 
     return res.status(200).json({
       success: true,
       token: token,
       refreshToken: token, // Same token for dev mode
       expiresIn: 604800, // 7 days
-      user: userWithoutPassword,
+      user: userResponse,
     });
   } catch (error) {
     console.error("Login Error:", error.message);
@@ -200,13 +218,27 @@ const loginUserKeycloak = async (req, res) => {
     } else {
       user = existingUsers[0];
     }
+    
+    // Ensure isOnboarded is always present (default to false if not set)
+    // Handle both boolean and any other truthy values
+    const isOnboardedValue = user.isOnboarded !== undefined 
+      ? (user.isOnboarded === true || user.isOnboarded === 'true' || user.isOnboarded === 1)
+      : false;
+    
+    const userResponse = {
+      ...user,
+      isOnboarded: isOnboardedValue,
+    };
+
+    // Log for debugging
+    console.log(`[Login Keycloak] User ${user.email || 'unknown'} login - isOnboarded:`, user.isOnboarded, '->', isOnboardedValue);
 
     return res.status(200).json({
       success: true,
       token: tokenResponse.data.access_token,
       refreshToken: tokenResponse.data.refresh_token,
       expiresIn: tokenResponse.data.expires_in,
-      user: user,
+      user: userResponse,
     });
   } catch (error) {
     console.error("Login Error:", error.response?.data || error.message);
@@ -521,9 +553,92 @@ const getUserDetails = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     
-    res.status(200).json({ data: info[0] });
+    const userData = info[0];
+    
+    // Ensure isOnboarded is always present and properly formatted
+    // Handle both boolean and any other truthy values
+    const isOnboardedValue = userData.isOnboarded !== undefined 
+      ? (userData.isOnboarded === true || userData.isOnboarded === 'true' || userData.isOnboarded === 1)
+      : false;
+    
+    const userResponse = {
+      ...userData,
+      isOnboarded: isOnboardedValue,
+    };
+    
+    // Log for debugging
+    console.log(`[GetUserDetails] User ${userData.email || 'unknown'} - isOnboarded:`, userData.isOnboarded, '->', isOnboardedValue);
+    
+    res.status(200).json({ data: userResponse });
   } catch (error) {
     res.status(400).json({ error: error.message });
+  }
+};
+
+// ========== COMPLETE ONBOARDING ==========
+const completeOnboarding = async (req, res) => {
+  try {
+    const user = req.user;
+    const { onboardingData } = req.body;
+
+    // Find user by keycloakId (works for both dev and keycloak mode)
+    const cursor = await db.query(`
+      FOR user IN users
+      FILTER user.keycloakId == "${user.sub}"
+      RETURN user
+    `);
+    const users = await cursor.all();
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const userDoc = users[0];
+    const collection = db.collection("users");
+
+    // Update user with onboarding data and mark as onboarded
+    const updates = {
+      isOnboarded: true,
+      onboardingData: onboardingData || {},
+      onboardingCompletedAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    await collection.update(userDoc._key, updates);
+    
+    // Re-fetch the user to verify the update was saved
+    const updatedUser = await collection.document(userDoc._key);
+    
+    // Verify the update was successful
+    if (updatedUser.isOnboarded !== true && updatedUser.isOnboarded !== 'true' && updatedUser.isOnboarded !== 1) {
+      console.error(`[Onboarding] WARNING: User ${userDoc.email} onboarding update may have failed. isOnboarded value:`, updatedUser.isOnboarded);
+    }
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = updatedUser;
+    
+    // Ensure isOnboarded is explicitly true in response
+    const userResponse = {
+      ...userWithoutPassword,
+      isOnboarded: true, // Always set to true since we just completed onboarding
+    };
+
+    // Log the updated user to verify isOnboarded was saved
+    console.log(`[Onboarding] User ${userDoc.email} completed onboarding`);
+    console.log(`[Onboarding] Database isOnboarded value:`, updatedUser.isOnboarded);
+    console.log(`[Onboarding] Response isOnboarded value:`, userResponse.isOnboarded);
+    
+    return res.status(200).json({
+      success: true,
+      message: "Onboarding completed successfully",
+      user: userResponse,
+    });
+  } catch (error) {
+    console.error("Complete onboarding error:", error.message);
+    return res.status(500).json({ 
+      message: "Failed to complete onboarding", 
+      error: error.message 
+    });
   }
 };
 
@@ -606,7 +721,12 @@ const getProfessionalProfile = async (req, res) => {
   }
 };
 
-// ========== FORGOT PASSWORD ==========
+// Generate OTP
+const generateOtp = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// ========== FORGOT PASSWORD (Send OTP) ==========
 const forgotPassword = async (req, res) => {
   const { email } = req.body;
 
@@ -627,86 +747,94 @@ const forgotPassword = async (req, res) => {
       // Return success even if user doesn't exist (security)
       return res.status(200).json({ 
         success: true, 
-        message: "If an account with that email exists, a password reset link has been sent." 
+        message: "If an account with that email exists, a verification code has been sent." 
       });
     }
 
     const user = users[0];
 
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 hour from now
+    // Generate OTP
+    const otp = generateOtp();
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
-    // Store reset token in user document
+    // Store OTP in user document
     await db.collection("users").update(user._key, {
-      resetToken: hashPassword(resetToken), // Hash the token for security
-      resetTokenExpiry,
+      resetOtp: hashPassword(otp), // Hash the OTP for security
+      resetOtpExpiry: otpExpiry,
       updatedAt: new Date(),
     });
 
-    // In DEV MODE, we'll log the reset link instead of sending email
-    if (DEV_MODE) {
-      console.log(`[DEV MODE] Password reset token for ${email}: ${resetToken}`);
-      console.log(`[DEV MODE] Reset link: http://localhost:3000/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`);
+    // Always try to send email - use existing transporter utility
+    let emailSent = false;
+    let emailError = null;
+
+    try {
+      // Use the existing transporter utility that uses EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+      const { otpEmail } = require("../../utils/otpEmail");
+
+      console.log(`[Email] Attempting to send OTP to ${email}`);
+      console.log(`[Email] OTP: ${otp}`);
+      console.log(`[Email] DEV_MODE: ${DEV_MODE}`);
+      console.log(`[Email] EMAIL_HOST: ${process.env.EMAIL_HOST || 'NOT SET'}`);
+      console.log(`[Email] EMAIL_HOST_USER: ${process.env.EMAIL_HOST_USER || 'NOT SET'}`);
+      console.log(`[Email] EMAIL_HOST_PASSWORD: ${process.env.EMAIL_HOST_PASSWORD ? 'SET' : 'NOT SET'}`);
+
+      // Send OTP email using the existing OTP email utility
+      // The otpEmail function handles the "from" field formatting internally
+      await otpEmail({
+        firstName: user.firstName || "User",
+        lastName: user.lastName || "",
+        corporateEmail: email,
+        otp: otp,
+        isPasswordReset: true, // Mark as password reset email
+      });
+
+      emailSent = true;
+      console.log(`[Email] ✅ Password reset OTP sent successfully to ${email}`);
+    } catch (err) {
+      emailError = err;
+      console.error("[Email] ❌ Failed to send password reset OTP");
+      console.error("[Email] Error message:", err.message);
+      console.error("[Email] Error stack:", err.stack);
+      console.error("[Email] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err)));
+      
+      // Log configuration status
+      console.error("[Email] Configuration check:");
+      if (!process.env.EMAIL_HOST) {
+        console.error("[Email] ❌ EMAIL_HOST is not configured in .env file");
+      } else {
+        console.log(`[Email] ✅ EMAIL_HOST: ${process.env.EMAIL_HOST}`);
+      }
+      if (!process.env.EMAIL_HOST_USER) {
+        console.error("[Email] ❌ EMAIL_HOST_USER is not configured in .env file");
+      } else {
+        console.log(`[Email] ✅ EMAIL_HOST_USER: ${process.env.EMAIL_HOST_USER}`);
+      }
+      if (!process.env.EMAIL_HOST_PASSWORD) {
+        console.error("[Email] ❌ EMAIL_HOST_PASSWORD is not configured in .env file");
+      } else {
+        console.log(`[Email] ✅ EMAIL_HOST_PASSWORD: SET`);
+      }
+    }
+
+    // In DEV MODE or if email failed, also log the OTP for testing
+    if (DEV_MODE || !emailSent) {
+      console.log(`[DEV MODE] Password reset OTP for ${email}: ${otp}`);
       
       return res.status(200).json({ 
         success: true, 
-        message: "Password reset link has been sent to your email.",
-        // Include token in dev mode for testing
-        devToken: resetToken 
+        message: emailSent 
+          ? "Verification code has been sent to your email." 
+          : "Verification code generated. Check console/logs for the OTP (DEV MODE).",
+        // Include OTP in dev mode or if email failed
+        devOtp: otp 
       });
     }
 
-    // PRODUCTION MODE - Send email using nodemailer
-    try {
-      const nodemailer = require("nodemailer");
-      
-      // Create transporter - configure these in .env
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST || "smtp.gmail.com",
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
-
-      const resetUrl = `${process.env.APP_URL || "http://localhost:3000"}/reset-password?token=${resetToken}&email=${encodeURIComponent(email)}`;
-
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || '"BuzzBreach" <noreply@buzzbreach.com>',
-        to: email,
-        subject: "Password Reset Request - BuzzBreach",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #6C63FF;">Password Reset Request</h2>
-            <p>Hello ${user.firstName || "User"},</p>
-            <p>You requested to reset your password. Click the button below to reset it:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetUrl}" 
-                 style="background-color: #6C63FF; color: white; padding: 12px 30px; 
-                        text-decoration: none; border-radius: 8px; display: inline-block;">
-                Reset Password
-              </a>
-            </div>
-            <p>This link will expire in 1 hour.</p>
-            <p>If you didn't request this, you can safely ignore this email.</p>
-            <hr style="border: 1px solid #eee; margin: 20px 0;">
-            <p style="color: #666; font-size: 12px;">BuzzBreach Team</p>
-          </div>
-        `,
-      });
-
-      console.log(`[Email] Password reset email sent to ${email}`);
-    } catch (emailError) {
-      console.error("Email sending error:", emailError.message);
-      // Don't reveal email sending failure to user
-    }
-
+    // Email sent successfully
     return res.status(200).json({ 
       success: true, 
-      message: "If an account with that email exists, a password reset link has been sent." 
+      message: "Verification code has been sent to your email." 
     });
 
   } catch (error) {
@@ -725,6 +853,13 @@ const resetPassword = async (req, res) => {
 
   if (newPassword.length < 6) {
     return res.status(400).json({ message: "Password must be at least 6 characters" });
+  }
+
+  // Check if password contains both letters and numbers
+  const hasLetter = /[a-zA-Z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  if (!hasLetter || !hasNumber) {
+    return res.status(400).json({ message: "Password must contain both letters and numbers" });
   }
 
   try {
@@ -780,6 +915,451 @@ const resetPassword = async (req, res) => {
   }
 };
 
+// ========== VERIFY RESET OTP ==========
+const verifyResetOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!email || !otp) {
+    return res.status(400).json({ message: "Email and OTP are required" });
+  }
+
+  try {
+    // Find user
+    const cursor = await db.query(`
+      FOR user IN users
+      FILTER user.email == "${email}"
+      RETURN user
+    `);
+    const users = await cursor.all();
+
+    if (users.length === 0) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    const user = users[0];
+
+    // Check OTP validity
+    if (!user.resetOtp || !user.resetOtpExpiry) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    // Check if OTP matches
+    const hashedOtp = hashPassword(otp);
+    if (user.resetOtp !== hashedOtp) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
+    // Check if OTP is expired
+    if (new Date() > new Date(user.resetOtpExpiry)) {
+      return res.status(400).json({ message: "Verification code has expired. Please request a new one." });
+    }
+
+    // OTP is valid
+    console.log(`[Auth] OTP verified successfully for ${email}`);
+
+    return res.status(200).json({ 
+      success: true, 
+      message: "Verification code verified successfully." 
+    });
+
+  } catch (error) {
+    console.error("Verify reset OTP error:", error.message);
+    return res.status(500).json({ message: "Failed to verify code", error: error.message });
+  }
+};
+
+// ========== RESET PASSWORD WITH OTP ==========
+const resetPasswordWithOtp = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.status(400).json({ message: "Email, OTP, and new password are required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters" });
+  }
+
+  // Check if password contains both letters and numbers
+  const hasLetter = /[a-zA-Z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  if (!hasLetter || !hasNumber) {
+    return res.status(400).json({ message: "Password must contain both letters and numbers" });
+  }
+
+  try {
+    // Find user
+    const cursor = await db.query(`
+      FOR user IN users
+      FILTER user.email == "${email}"
+      RETURN user
+    `);
+    const users = await cursor.all();
+
+    if (users.length === 0) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    const user = users[0];
+
+    // Check OTP validity
+    if (!user.resetOtp || !user.resetOtpExpiry) {
+      return res.status(400).json({ message: "Invalid or expired verification code" });
+    }
+
+    // Check if OTP matches
+    const hashedOtp = hashPassword(otp);
+    if (user.resetOtp !== hashedOtp) {
+      return res.status(400).json({ message: "Invalid verification code" });
+    }
+
+    // Check if OTP is expired
+    if (new Date() > new Date(user.resetOtpExpiry)) {
+      return res.status(400).json({ message: "Verification code has expired. Please request a new one." });
+    }
+
+    // Update password and clear OTP
+    const newHashedPassword = hashPassword(newPassword);
+    await db.collection("users").update(user._key, {
+      password: newHashedPassword,
+      resetOtp: null,
+      resetOtpExpiry: null,
+      updatedAt: new Date(),
+    });
+
+    console.log(`[Auth] Password reset successful for ${email}`);
+
+    return res.status(200).json({ 
+      success: true, 
+      message: "Password has been reset successfully. You can now login with your new password." 
+    });
+
+  } catch (error) {
+    console.error("Reset password with OTP error:", error.message);
+    return res.status(500).json({ message: "Failed to reset password", error: error.message });
+  }
+};
+
+// ========== OAUTH AUTHENTICATION ==========
+
+// Google OAuth Login
+const loginWithGoogle = async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ message: "Google ID token is required" });
+  }
+
+  try {
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    
+    // Verify the token
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, given_name: firstName, family_name: lastName, picture } = payload;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email not provided by Google" });
+    }
+
+    // Find or create user
+    const cursor = await db.query(`
+      FOR user IN users
+      FILTER user.email == "${email}" OR user.googleId == "${googleId}"
+      RETURN user
+    `);
+    const existingUsers = await cursor.all();
+
+    let user;
+    if (existingUsers.length === 0) {
+      // Create new user
+      const newUser = {
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email,
+        googleId,
+        userType: "Individual",
+        keycloakId: `google-${googleId}`,
+        profilePicture: picture || null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isOnboarded: false,
+      };
+      const meta = await db.collection("users").save(newUser);
+      user = { ...newUser, _id: meta._id, _key: meta._key };
+    } else {
+      // Update existing user with Google ID if not set
+      user = existingUsers[0];
+      if (!user.googleId) {
+        await db.collection("users").update(user._key, {
+          googleId,
+          profilePicture: picture || user.profilePicture,
+          updatedAt: new Date(),
+        });
+        user = await db.collection("users").document(user._key);
+      }
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        sub: user.keycloakId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
+    
+    const isOnboardedValue = userWithoutPassword.isOnboarded !== undefined 
+      ? (userWithoutPassword.isOnboarded === true || userWithoutPassword.isOnboarded === 'true' || userWithoutPassword.isOnboarded === 1)
+      : false;
+    
+    const userResponse = {
+      ...userWithoutPassword,
+      isOnboarded: isOnboardedValue,
+    };
+
+    console.log(`[Google OAuth] User ${email} logged in`);
+
+    return res.status(200).json({
+      success: true,
+      token: token,
+      refreshToken: token,
+      expiresIn: 604800,
+      user: userResponse,
+    });
+  } catch (error) {
+    console.error("Google OAuth Error:", error.message);
+    return res.status(401).json({ message: "Invalid Google token", error: error.message });
+  }
+};
+
+// Facebook OAuth Login
+const loginWithFacebook = async (req, res) => {
+  const { accessToken } = req.body;
+
+  if (!accessToken) {
+    return res.status(400).json({ message: "Facebook access token is required" });
+  }
+
+  try {
+    // Verify token and get user info from Facebook
+    const fbResponse = await axios.get(
+      `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`
+    );
+
+    const { id: facebookId, email, name, picture } = fbResponse.data;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email not provided by Facebook" });
+    }
+
+    // Parse name
+    const nameParts = (name || "").split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    // Find or create user
+    const cursor = await db.query(`
+      FOR user IN users
+      FILTER user.email == "${email}" OR user.facebookId == "${facebookId}"
+      RETURN user
+    `);
+    const existingUsers = await cursor.all();
+
+    let user;
+    if (existingUsers.length === 0) {
+      // Create new user
+      const newUser = {
+        firstName,
+        lastName,
+        email,
+        facebookId,
+        userType: "Individual",
+        keycloakId: `facebook-${facebookId}`,
+        profilePicture: picture?.data?.url || null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isOnboarded: false,
+      };
+      const meta = await db.collection("users").save(newUser);
+      user = { ...newUser, _id: meta._id, _key: meta._key };
+    } else {
+      // Update existing user with Facebook ID if not set
+      user = existingUsers[0];
+      if (!user.facebookId) {
+        await db.collection("users").update(user._key, {
+          facebookId,
+          profilePicture: picture?.data?.url || user.profilePicture,
+          updatedAt: new Date(),
+        });
+        user = await db.collection("users").document(user._key);
+      }
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        sub: user.keycloakId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
+    
+    const isOnboardedValue = userWithoutPassword.isOnboarded !== undefined 
+      ? (userWithoutPassword.isOnboarded === true || userWithoutPassword.isOnboarded === 'true' || userWithoutPassword.isOnboarded === 1)
+      : false;
+    
+    const userResponse = {
+      ...userWithoutPassword,
+      isOnboarded: isOnboardedValue,
+    };
+
+    console.log(`[Facebook OAuth] User ${email} logged in`);
+
+    return res.status(200).json({
+      success: true,
+      token: token,
+      refreshToken: token,
+      expiresIn: 604800,
+      user: userResponse,
+    });
+  } catch (error) {
+    console.error("Facebook OAuth Error:", error.response?.data || error.message);
+    return res.status(401).json({ message: "Invalid Facebook token", error: error.message });
+  }
+};
+
+// Apple OAuth Login
+const loginWithApple = async (req, res) => {
+  const { identityToken, authorizationCode, user: appleUser } = req.body;
+
+  if (!identityToken) {
+    return res.status(400).json({ message: "Apple identity token is required" });
+  }
+
+  try {
+    // Decode the identity token (JWT)
+    const decoded = jwt.decode(identityToken);
+    
+    if (!decoded) {
+      return res.status(400).json({ message: "Invalid Apple identity token" });
+    }
+
+    // Apple provides email in the token or in the user object (first time only)
+    const email = decoded.email || appleUser?.email;
+    const appleId = decoded.sub;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email not provided by Apple" });
+    }
+
+    // Parse name if provided (only on first sign-in)
+    const name = appleUser?.name;
+    const firstName = name?.firstName || name?.givenName || "";
+    const lastName = name?.lastName || name?.familyName || "";
+
+    // Find or create user
+    const cursor = await db.query(`
+      FOR user IN users
+      FILTER user.email == "${email}" OR user.appleId == "${appleId}"
+      RETURN user
+    `);
+    const existingUsers = await cursor.all();
+
+    let user;
+    if (existingUsers.length === 0) {
+      // Create new user
+      const newUser = {
+        firstName: firstName || "",
+        lastName: lastName || "",
+        email,
+        appleId,
+        userType: "Individual",
+        keycloakId: `apple-${appleId}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isOnboarded: false,
+      };
+      const meta = await db.collection("users").save(newUser);
+      user = { ...newUser, _id: meta._id, _key: meta._key };
+    } else {
+      // Update existing user with Apple ID if not set
+      user = existingUsers[0];
+      const updates = { updatedAt: new Date() };
+      
+      if (!user.appleId) {
+        updates.appleId = appleId;
+      }
+      
+      // Update name if provided and user doesn't have it
+      if (firstName && !user.firstName) {
+        updates.firstName = firstName;
+      }
+      if (lastName && !user.lastName) {
+        updates.lastName = lastName;
+      }
+      
+      if (Object.keys(updates).length > 1) {
+        await db.collection("users").update(user._key, updates);
+        user = await db.collection("users").document(user._key);
+      }
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        sub: user.keycloakId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
+    
+    const isOnboardedValue = userWithoutPassword.isOnboarded !== undefined 
+      ? (userWithoutPassword.isOnboarded === true || userWithoutPassword.isOnboarded === 'true' || userWithoutPassword.isOnboarded === 1)
+      : false;
+    
+    const userResponse = {
+      ...userWithoutPassword,
+      isOnboarded: isOnboardedValue,
+    };
+
+    console.log(`[Apple OAuth] User ${email} logged in`);
+
+    return res.status(200).json({
+      success: true,
+      token: token,
+      refreshToken: token,
+      expiresIn: 604800,
+      user: userResponse,
+    });
+  } catch (error) {
+    console.error("Apple OAuth Error:", error.message);
+    return res.status(401).json({ message: "Invalid Apple token", error: error.message });
+  }
+};
+
 // Log the mode on startup
 console.log(`[Auth] Running in ${DEV_MODE ? "DEVELOPMENT" : "PRODUCTION (Keycloak)"} mode`);
 
@@ -795,4 +1375,10 @@ module.exports = {
   getProfessionalProfile,
   forgotPassword,
   resetPassword,
+  verifyResetOtp,
+  resetPasswordWithOtp,
+  completeOnboarding,
+  loginWithGoogle,
+  loginWithFacebook,
+  loginWithApple,
 };

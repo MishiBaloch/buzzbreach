@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { API_CONFIG } from './config';
 
 // Create axios instance
@@ -15,10 +16,16 @@ const apiClient = axios.create({
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 
+// Platform-specific storage
+const isWeb = Platform.OS === 'web';
+
 // Token management
 export const tokenManager = {
   async getToken() {
     try {
+      if (isWeb) {
+        return localStorage.getItem(TOKEN_KEY);
+      }
       return await SecureStore.getItemAsync(TOKEN_KEY);
     } catch (error) {
       console.error('Error getting token:', error);
@@ -28,6 +35,10 @@ export const tokenManager = {
 
   async setToken(token) {
     try {
+      if (isWeb) {
+        localStorage.setItem(TOKEN_KEY, token);
+        return;
+      }
       await SecureStore.setItemAsync(TOKEN_KEY, token);
     } catch (error) {
       console.error('Error setting token:', error);
@@ -36,6 +47,9 @@ export const tokenManager = {
 
   async getRefreshToken() {
     try {
+      if (isWeb) {
+        return localStorage.getItem(REFRESH_TOKEN_KEY);
+      }
       return await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
     } catch (error) {
       console.error('Error getting refresh token:', error);
@@ -45,6 +59,10 @@ export const tokenManager = {
 
   async setRefreshToken(token) {
     try {
+      if (isWeb) {
+        localStorage.setItem(REFRESH_TOKEN_KEY, token);
+        return;
+      }
       await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, token);
     } catch (error) {
       console.error('Error setting refresh token:', error);
@@ -53,6 +71,11 @@ export const tokenManager = {
 
   async clearTokens() {
     try {
+      if (isWeb) {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(REFRESH_TOKEN_KEY);
+        return;
+      }
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
     } catch (error) {

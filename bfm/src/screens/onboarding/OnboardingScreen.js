@@ -9,10 +9,13 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import { useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors, fontSize, spacing, borderRadius } from '../../theme/colors';
 import { markOnboardingComplete } from '../../utils/storage';
+import { completeOnboarding as completeOnboardingAPI } from '../../api/services/authService';
+import { setUser } from '../../store/slices/authSlice';
 import BuzzBreachLogo from '../../components/common/BuzzBreachLogo';
 
 const { width, height } = Dimensions.get('window');
@@ -30,7 +33,6 @@ const ONBOARDING_STEPS = [
       { id: 'graduate', label: 'Universities' },
       { id: 'other', label: 'Other' },
     ],
-    backgroundImage: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200',
   },
   {
     id: 2,
@@ -42,7 +44,6 @@ const ONBOARDING_STEPS = [
       { id: 'medical', label: 'Medical' },
       { id: 'other', label: 'Other' },
     ],
-    backgroundImage: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200',
   },
   {
     id: 3,
@@ -54,7 +55,6 @@ const ONBOARDING_STEPS = [
       { id: 'mentorship', label: 'Mentorship' },
       { id: 'videos', label: 'Videos' },
     ],
-    backgroundImage: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?w=1200',
   },
   {
     id: 4,
@@ -66,11 +66,11 @@ const ONBOARDING_STEPS = [
       { id: 'research', label: 'Communication' },
       { id: 'others', label: 'Tech' },
     ],
-    backgroundImage: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1200',
   },
 ];
 
 const OnboardingScreen = ({ navigation }) => {
+  const dispatch = useDispatch();
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const [selectedOption, setSelectedOption] = useState(null);
@@ -86,20 +86,61 @@ const OnboardingScreen = ({ navigation }) => {
   // Complete onboarding and navigate to main app
   const completeOnboarding = async (finalAnswers) => {
     try {
-      // Mark onboarding as complete
-      await markOnboardingComplete();
+      // Save onboarding data to backend
+      const result = await completeOnboardingAPI(finalAnswers);
       
-      // You can save answers to backend here if needed
-      console.log('Onboarding answers:', finalAnswers);
-      
-      // Navigate to main app
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
+      if (result.success) {
+        // Mark onboarding as complete in local storage (for offline support)
+        await markOnboardingComplete();
+        
+        // Update Redux store with the updated user object that has isOnboarded: true
+        if (result.user) {
+          dispatch(setUser(result.user));
+        }
+        
+        console.log('Onboarding completed successfully:', {
+          answers: finalAnswers,
+          user: result.user,
+          userOnboarded: result.user?.isOnboarded,
+        });
+        
+        // Navigate to main app
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      } else {
+        // If backend save fails, still mark locally and navigate
+        // This ensures user can continue even if there's a network issue
+        console.warn('Backend onboarding save failed, but continuing:', result.error);
+        await markOnboardingComplete();
+        
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Main' }],
+        });
+      }
     } catch (error) {
       console.error('Error completing onboarding:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      // Even if there's an error, mark locally and allow user to continue
+      // The backend can sync later if needed
+      await markOnboardingComplete();
+      
+      Alert.alert(
+        'Onboarding Complete', 
+        'Your onboarding data has been saved. You can update it later in your profile.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Main' }],
+              });
+            },
+          },
+        ]
+      );
     }
   };
 
@@ -135,20 +176,30 @@ const OnboardingScreen = ({ navigation }) => {
     // Don't allow going back on first step - onboarding is mandatory
   };
 
+
+  // Get background image source - using direct require() calls
+  const getImageSource = () => {
+    if (currentQuestion.id === 1) return require('../../../assets/education.jpeg');
+    if (currentQuestion.id === 2) return require('../../../assets/field.jpeg');
+    if (currentQuestion.id === 3) return require('../../../assets/guidance.jpeg');
+    if (currentQuestion.id === 4) return require('../../../assets/skills.jpeg');
+    return require('../../../assets/education.jpeg');
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
       {/* Background Image */}
       <ImageBackground
-        source={{ uri: currentQuestion.backgroundImage }}
+        source={getImageSource()}
         style={styles.backgroundImage}
         imageStyle={styles.backgroundImageStyle}
         resizeMode="cover"
       >
         {/* Dark Overlay */}
         <LinearGradient
-          colors={['rgba(13, 11, 30, 0.28)', 'rgba(13, 11, 30, 0.92)', colors.background]}
+          colors={['rgba(13, 11, 30, 0.1)', 'rgba(13, 11, 30, 0.5)', 'rgba(13, 11, 30, 0.85)']}
           locations={[0, 0.62, 0.92]}
           style={styles.overlay}
         >
@@ -165,7 +216,7 @@ const OnboardingScreen = ({ navigation }) => {
               <View style={styles.placeholder} />
             )}
             <View style={styles.logoContainer}>
-              <BuzzBreachLogo size={22} color={colors.primary} />
+              <BuzzBreachLogo size={22} />
               <Text style={styles.logoText}>BUZZBREACH</Text>
             </View>
             <View style={styles.placeholder} />

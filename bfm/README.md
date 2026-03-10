@@ -82,7 +82,12 @@ bfm/
 - Node.js (v18+)
 - npm or yarn
 - Expo CLI (`npm install -g expo-cli`)
-- Expo Go app on your mobile device (for testing)
+- **For Android Emulator:**
+  - Android Studio (latest version)
+  - Android SDK (API level 33 or higher recommended)
+  - Android Virtual Device (AVD) configured
+- **For Physical Device:**
+  - Expo Go app on your mobile device (for testing)
 
 ### Installation
 
@@ -96,7 +101,33 @@ bfm/
    npm install
    ```
 
-3. **Configure API endpoints:**
+3. **Set up Android Emulator (if not already done):**
+   
+   **Step 1: Install Android Studio**
+   - Download from [developer.android.com/studio](https://developer.android.com/studio)
+   - Install Android Studio and follow the setup wizard
+   - Make sure to install Android SDK, Android SDK Platform, and Android Virtual Device
+   
+   **Step 2: Create an Android Virtual Device (AVD)**
+   - Open Android Studio
+   - Go to **Tools** → **Device Manager** (or **AVD Manager**)
+   - Click **Create Device**
+   - Select a device (e.g., Pixel 5, Pixel 6)
+   - Select a system image (recommended: **API 33** or **API 34** with Google Play)
+   - Click **Finish**
+   
+   **Step 3: Verify Android SDK Path**
+   - On Windows, the default path is usually: `C:\Users\YourUsername\AppData\Local\Android\Sdk`
+   - Add to your environment variables if needed:
+     - `ANDROID_HOME` = `C:\Users\YourUsername\AppData\Local\Android\Sdk`
+     - Add to PATH: `%ANDROID_HOME%\platform-tools` and `%ANDROID_HOME%\tools`
+   
+   **Step 4: Start the Emulator**
+   - Open Android Studio → Device Manager
+   - Click the ▶️ play button next to your AVD
+   - Wait for the emulator to boot up completely
+
+4. **Configure API endpoints:**
    
    Edit `src/api/config.js` and update:
    ```javascript
@@ -112,21 +143,27 @@ bfm/
    ```
 
    **Note:** 
-   - For Android emulator, use `10.0.2.2` for localhost
+   - For Android emulator, use `10.0.2.2` for localhost (e.g., `http://10.0.2.2:5000`)
    - For iOS simulator, use `localhost`
-   - For physical device, use your computer's IP address
+   - For physical device, use your computer's IP address (e.g., `http://192.168.1.100:5000`)
 
-4. **Start the development server:**
+5. **Start the development server:**
    ```bash
    npm start
    # or
    npx expo start
    ```
 
-5. **Run on device/emulator:**
-   - Press `a` for Android
-   - Press `i` for iOS
-   - Scan QR code with Expo Go app
+6. **Run on Android Emulator:**
+   - Make sure your Android emulator is running (started from Android Studio)
+   - In the Expo terminal, press `a` to open on Android
+   - Or run directly: `npm run android`
+   - The app will automatically install and launch on the emulator
+   
+   **Alternative: Run on device/emulator:**
+   - Press `a` for Android emulator
+   - Press `i` for iOS simulator (macOS only)
+   - Scan QR code with Expo Go app (physical device)
 
 ## 🔧 Configuration
 
@@ -153,19 +190,38 @@ npm start
 
 ### Development Mode
 
+**Option 1: Using npm scripts (Recommended)**
 ```bash
-# Start Expo
-npm start
-
-# Run on Android
+# Start Expo and open Android emulator
 npm run android
 
-# Run on iOS (macOS only)
+# Start Expo and open iOS simulator (macOS only)
 npm run ios
 
-# Run on web (limited support)
+# Start Expo for web (limited support)
 npm run web
+
+# Start Expo dev server (then press 'a' for Android, 'i' for iOS)
+npm start
 ```
+
+**Option 2: Using Expo CLI directly**
+```bash
+# Start Expo dev server
+npx expo start
+
+# Then in the terminal:
+# - Press 'a' to open on Android emulator
+# - Press 'i' to open on iOS simulator
+# - Press 'w' to open on web
+# - Scan QR code with Expo Go app for physical device
+```
+
+**Troubleshooting Android Emulator:**
+- If emulator doesn't start automatically, make sure it's running in Android Studio first
+- If you get "adb not found", add Android SDK platform-tools to your PATH
+- If the app doesn't install, try: `adb devices` to verify emulator is connected
+- For connection issues, restart the emulator and run `npm run android` again
 
 ### Building for Production
 

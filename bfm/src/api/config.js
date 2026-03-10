@@ -3,7 +3,7 @@
 
 export const API_CONFIG = {
   // Development - Use your actual IP for physical device
-  BASE_URL: 'http://192.168.0.101:5000/api/v1', // Your local network IP
+  BASE_URL: 'http://192.168.0.102:5000/api/v1', // Your local network IP
   // BASE_URL: 'http://10.0.2.2:5000/api/v1', // Android emulator localhost
   // BASE_URL: 'http://localhost:5000/api/v1', // iOS simulator
   
@@ -18,8 +18,28 @@ export const KEYCLOAK_CONFIG = {
   REALM: 'buzzbreach',
   CLIENT_ID: 'buzzbreach-mobile',
   // Update this to your Keycloak server URL
-  SERVER_URL: 'http://192.168.0.101:8080',
+  SERVER_URL: 'http://192.168.0.102:8080',
   // SERVER_URL: 'https://auth.buzzbreach.com',
+};
+
+// OAuth Configuration
+export const OAUTH_CONFIG = {
+  GOOGLE: {
+    // Get from Google Cloud Console: https://console.cloud.google.com/
+    // For iOS: Use the iOS client ID
+    // For Android: Use the Android client ID (or Web client ID)
+    CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID',
+    // For iOS, you may need a different client ID
+    IOS_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || 'YOUR_GOOGLE_IOS_CLIENT_ID',
+  },
+  FACEBOOK: {
+    // Get from Facebook Developers: https://developers.facebook.com/
+    APP_ID: process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || 'YOUR_FACEBOOK_APP_ID',
+  },
+  APPLE: {
+    // Apple doesn't require client ID for native sign-in
+    // But you need to configure it in Apple Developer Portal
+  },
 };
 
 export const ENDPOINTS = {
@@ -31,6 +51,11 @@ export const ENDPOINTS = {
     VERIFY_OTP: '/user/auth/verify-otp',
     FORGOT_PASSWORD: '/user/auth/forgot-password',
     RESET_PASSWORD: '/user/auth/reset-password',
+    VERIFY_RESET_OTP: '/user/auth/verify-reset-otp',
+    RESET_PASSWORD_WITH_OTP: '/user/auth/reset-password-with-otp',
+    GOOGLE: '/user/auth/google',
+    FACEBOOK: '/user/auth/facebook',
+    APPLE: '/user/auth/apple',
   },
   
   // User
@@ -41,6 +66,7 @@ export const ENDPOINTS = {
     CREATE_INDIVIDUAL: '/user/create-individual-user',
     UPDATE_PROFILE: '/user/update-profile',
     UPDATE_PROFESSIONAL: '/user/update-professional-profile',
+    COMPLETE_ONBOARDING: '/user/complete-onboarding',
   },
   
   // Jobs - Match actual backend routes
