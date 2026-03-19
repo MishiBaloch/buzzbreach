@@ -28,10 +28,18 @@ const getAdminToken = async () => {
     url: `${process.env.KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     data: data,
+    httpsAgent: new (require('https').Agent)({
+      rejectUnauthorized: false
+    })
   };
 
-  const response = await axios(config);
-  return response.data.access_token;
+  try {
+    const response = await axios(config);
+    return response.data.access_token;
+  } catch (error) {
+    console.error("❌ Failed to get Keycloak admin token:", error.response?.data || error.message);
+    throw new Error(`Keycloak admin token error: ${error.response?.data?.error_description || error.message}`);
+  }
 };
 
 // ========== DEV MODE LOGIN (No Keycloak) ==========
@@ -185,6 +193,9 @@ const loginUserKeycloak = async (req, res) => {
       url: `${process.env.KEYCLOAK_URL}/realms/${realm}/protocol/openid-connect/token`,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       data: data,
+      httpsAgent: new (require('https').Agent)({
+        rejectUnauthorized: false
+      })
     };
 
     const tokenResponse = await axios(tokenConfig);
@@ -268,6 +279,11 @@ const registerUserKeycloak = async (req, res) => {
     const adminToken = await getAdminToken();
     const realm = process.env.REALM_NAME || "buzzbreach";
 
+    // Create HTTPS agent for all Keycloak requests
+    const httpsAgent = new (require('https').Agent)({
+      rejectUnauthorized: false
+    });
+
     // 2. Create User in Keycloak
     const createUserConfig = {
       method: "post",
@@ -283,6 +299,7 @@ const registerUserKeycloak = async (req, res) => {
         lastName: lastName || "",
         enabled: true,
       }),
+      httpsAgent: httpsAgent
     };
 
     try {
@@ -299,6 +316,7 @@ const registerUserKeycloak = async (req, res) => {
       method: "get",
       url: `${process.env.KEYCLOAK_URL}/admin/realms/${realm}/users?email=${email}`,
       headers: { Authorization: `Bearer ${adminToken}` },
+      httpsAgent: httpsAgent
     };
 
     const userList = await axios(getUserConfig);
@@ -320,6 +338,7 @@ const registerUserKeycloak = async (req, res) => {
         value: password,
         temporary: false,
       }),
+      httpsAgent: httpsAgent
     };
     await axios(setPassConfig);
 
