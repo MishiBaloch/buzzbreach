@@ -9,6 +9,33 @@ const { OAuth2Client } = require("google-auth-library");
 const DEV_MODE = !process.env.KEYCLOAK_URL || process.env.DEV_MODE === "true";
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-key-change-in-production";
 
+// Normalize Keycloak base URL at runtime to avoid common misconfigurations
+// - Ensures https://
+// - Removes any trailing slashes
+// - Ensures it does NOT include /realms/ segment (callers will append it)
+function normalizeKeycloakUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return rawUrl;
+  }
+  let url = rawUrl.trim();
+  // Remove any trailing slash
+  if (url.endsWith("/")) {
+    url = url.slice(0, -1);
+  }
+  // If the url mistakenly contains /realms/..., strip it to base
+  const realmsIdx = url.indexOf("/realms/");
+  if (realmsIdx !== -1) {
+    url = url.slice(0, realmsIdx);
+  }
+  // Force https scheme if http provided
+  if (url.startsWith("http://")) {
+    url = "https://" + url.slice("http://".length);
+  }
+  return url;
+}
+
+const KEYCLOAK_URL = normalizeKeycloakUrl(process.env.KEYCLOAK_URL);
+
 // Simple password hashing for dev mode
 const hashPassword = (password) => {
   return crypto.createHash("sha256").update(password).digest("hex");
@@ -25,7 +52,7 @@ const getAdminToken = async () => {
 
   const config = {
     method: "post",
-    url: `${process.env.KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
+    url: `${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     data: data,
     httpsAgent: new (require('https').Agent)({
@@ -34,8 +61,8 @@ const getAdminToken = async () => {
   };
 
   try {
-    const response = await axios(config);
-    return response.data.access_token;
+  const response = await axios(config);
+  return response.data.access_token;
   } catch (error) {
     console.error("❌ Failed to get Keycloak admin token:", error.response?.data || error.message);
     throw new Error(`Keycloak admin token error: ${error.response?.data?.error_description || error.message}`);
@@ -190,7 +217,7 @@ const loginUserKeycloak = async (req, res) => {
 
     const tokenConfig = {
       method: "post",
-      url: `${process.env.KEYCLOAK_URL}/realms/${realm}/protocol/openid-connect/token`,
+      url: `${KEYCLOAK_URL}/realms/${realm}/protocol/openid-connect/token`,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       data: data,
       httpsAgent: new (require('https').Agent)({
@@ -287,7 +314,7 @@ const registerUserKeycloak = async (req, res) => {
     // 2. Create User in Keycloak
     const createUserConfig = {
       method: "post",
-      url: `${process.env.KEYCLOAK_URL}/admin/realms/${realm}/users`,
+      url: `${KEYCLOAK_URL}/admin/realms/${realm}/users`,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${adminToken}`,
@@ -314,7 +341,7 @@ const registerUserKeycloak = async (req, res) => {
     // 3. Get the new User's ID
     const getUserConfig = {
       method: "get",
-      url: `${process.env.KEYCLOAK_URL}/admin/realms/${realm}/users?email=${email}`,
+      url: `${KEYCLOAK_URL}/admin/realms/${realm}/users?email=${email}`,
       headers: { Authorization: `Bearer ${adminToken}` },
       httpsAgent: httpsAgent
     };
@@ -328,7 +355,7 @@ const registerUserKeycloak = async (req, res) => {
     // 4. Set Password
     const setPassConfig = {
       method: "put",
-      url: `${process.env.KEYCLOAK_URL}/admin/realms/${realm}/users/${keycloakId}/reset-password`,
+      url: `${KEYCLOAK_URL}/admin/realms/${realm}/users/${keycloakId}/reset-password`,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${adminToken}`,
@@ -489,7 +516,7 @@ const keycloakFunction = async ({ id, firstName, lastName }) => {
   });
   var config = {
     method: "post",
-    url: `${process.env.KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
+    url: `${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
@@ -513,7 +540,7 @@ const keycloakFunction = async ({ id, firstName, lastName }) => {
   let keycloakConfig = {
     method: "put",
     maxBodyLength: Infinity,
-    url: `${process.env.KEYCLOAK_URL}/admin/realms/${process.env.REALM_NAME}/users/${id}`,
+    url: `${KEYCLOAK_URL}/admin/realms/${process.env.REALM_NAME}/users/${id}`,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${getToken}`,
@@ -1401,3 +1428,4 @@ module.exports = {
   loginWithFacebook,
   loginWithApple,
 };
+
