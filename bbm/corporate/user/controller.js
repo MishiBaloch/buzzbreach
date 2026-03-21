@@ -53,7 +53,10 @@ const getAdminToken = async () => {
   const config = {
     method: "post",
     url: `${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    headers: { 
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-Forwarded-Proto": "https"
+    },
     data: data,
     httpsAgent: new (require('https').Agent)({
       rejectUnauthorized: false
@@ -218,7 +221,10 @@ const loginUserKeycloak = async (req, res) => {
     const tokenConfig = {
       method: "post",
       url: `${KEYCLOAK_URL}/realms/${realm}/protocol/openid-connect/token`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { 
+        "Content-Type": "application/x-www-form-urlencoded",
+        "X-Forwarded-Proto": "https"
+      },
       data: data,
       httpsAgent: new (require('https').Agent)({
         rejectUnauthorized: false
@@ -318,6 +324,7 @@ const registerUserKeycloak = async (req, res) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${adminToken}`,
+        "X-Forwarded-Proto": "https"
       },
       data: JSON.stringify({
         username: email,
@@ -342,7 +349,10 @@ const registerUserKeycloak = async (req, res) => {
     const getUserConfig = {
       method: "get",
       url: `${KEYCLOAK_URL}/admin/realms/${realm}/users?email=${email}`,
-      headers: { Authorization: `Bearer ${adminToken}` },
+      headers: { 
+        Authorization: `Bearer ${adminToken}`,
+        "X-Forwarded-Proto": "https"
+      },
       httpsAgent: httpsAgent
     };
 
@@ -359,6 +369,7 @@ const registerUserKeycloak = async (req, res) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${adminToken}`,
+        "X-Forwarded-Proto": "https"
       },
       data: JSON.stringify({
         type: "password",
@@ -519,6 +530,7 @@ const keycloakFunction = async ({ id, firstName, lastName }) => {
     url: `${KEYCLOAK_URL}/realms/master/protocol/openid-connect/token`,
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
+      "X-Forwarded-Proto": "https"
     },
     data: data,
   };
@@ -544,6 +556,7 @@ const keycloakFunction = async ({ id, firstName, lastName }) => {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${getToken}`,
+      "X-Forwarded-Proto": "https"
     },
     data: updatedData,
   };
@@ -1406,8 +1419,9 @@ const loginWithApple = async (req, res) => {
   }
 };
 
-// Log the mode on startup
+// Log the mode and effective Keycloak URL on startup
 console.log(`[Auth] Running in ${DEV_MODE ? "DEVELOPMENT" : "PRODUCTION (Keycloak)"} mode`);
+console.log(`[Auth] Effective KEYCLOAK_URL: ${KEYCLOAK_URL || "NOT SET"}`);
 
 module.exports = {
   registerUser,
