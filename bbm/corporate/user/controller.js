@@ -310,7 +310,7 @@ const registerUserKeycloak = async (req, res) => {
   try {
     // 1. Get Admin Token
     const adminToken = await getAdminToken();
-    const realm = process.env.REALM_NAME || "buzzbreach";
+    const realm = process.env.REALM_NAME || "master";
 
     // Create HTTPS agent for all Keycloak requests
     const httpsAgent = new (require('https').Agent)({
@@ -1422,6 +1422,7 @@ const loginWithApple = async (req, res) => {
 // Log the mode and effective Keycloak URL on startup
 console.log(`[Auth] Running in ${DEV_MODE ? "DEVELOPMENT" : "PRODUCTION (Keycloak)"} mode`);
 console.log(`[Auth] Effective KEYCLOAK_URL: ${KEYCLOAK_URL || "NOT SET"}`);
+console.log(`[Auth] Effective REALM_NAME: ${process.env.REALM_NAME || "master"} | KEYCLOAK_CLIENT_ID: ${process.env.KEYCLOAK_CLIENT_ID || "buzzbreach-client"}`);
 
 module.exports = {
   registerUser,
